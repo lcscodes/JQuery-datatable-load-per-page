@@ -1,0 +1,89 @@
+public function get_data_spp()
+	{
+		## Search 
+		$searchQuery = " ";
+		if ($_POST['search']['value'] != '') {
+			$searchQuery .= " and (a.nomor_spp like '%" . $_POST['search']['value'] . "%' or 
+				a.uraian like '%" . $_POST['search']['value'] . "%' ) ";
+		}
+		// echo $_POST['fawal'];
+		if ($_POST['fawal'] != '') {
+			$searchQuery .= " and a.tgl_spp >='" . $_POST['fawal'] . "' ";
+		}
+		if ($_POST['fakhir'] != '') {
+			$searchQuery .= " and a.tgl_spp <='" . $_POST['fakhir'] . "' ";
+		}
+		$order = "";
+		if (isset($_POST['order'][0]['column'])) // here order processing
+		{
+			switch ($_POST['order'][0]['column']) {
+				case 0:
+					$order = " order by a.unit_kode " . $_POST['order'][0]['dir'];
+					break;
+				case 1:
+					$order = " order by unit.unit_nama " . $_POST['order'][0]['dir'];
+					break;
+				default:
+					$order = "";
+			}
+		}
+
+		$query = $this->db->query('SELECT
+		a.id,
+		a.unit_kode,
+		unit.unit_nama unit_nama,
+		a.jenis,
+		a.nomor_spp,
+		a.nomor_sp2d,
+		a.tgl_spp,
+		a.nomor_spm,
+		a.tgl_spm,
+		a.uraian,
+		sum(rek.nilai) nilai
+		FROM `spp-spm-sp2d` a  
+		LEFT JOIN (select distinct(unit_kode),unit_nama from anggaran) unit ON unit.unit_kode=a.unit_kode
+		LEFT JOIN `spp-spm-sp2d_rekening` rek ON rek.id=a.id
+		where 1 and left(jenis,2)=\'LS\' ' . $searchQuery . ' group by 1 ' . $order . ' limit ' . $_POST['length'] . ' offset ' . $_POST['start']);
+		$data_spp = $query->result();
+
+		$query = $this->db->query("select count(*) as allcount from `spp-spm-sp2d` where left(jenis,2)='LS' ")->row();
+		$totalRecords = $query->allcount;
+
+		$query = $this->db->query("select count(*) as allcount from `spp-spm-sp2d` a WHERE 1 and left(jenis,2)='LS' " . $searchQuery)->row();
+		$totalRecordwithFilter = $query->allcount;
+		$tes = $_POST['tespost'];
+		$data = '';
+
+		$data = array();
+		foreach ($data_spp as $row) {
+			$action = "";
+			// $action = "<a href=\"" . base_url() . $this->modul_name . "/print/" . "" . "\"><i class=\"fas fa-print\"></i>SPP</a>";
+
+			if (is_null($row->nomor_sp2d)) {
+				$action .= '<a href="' . base_url() . $this->modul_name . '/delete/' . $row->id . '"><i class="fas fa-trash" onclick="return confirm(\'Anda yakin akan menghapus data ini?\');"></i></a>&nbsp;&nbsp;<a href="' . base_url() . $this->modul_name . '/form/' . $row->id . '"><i class="fas fa-edit"></i></a>&nbsp';
+			} else {
+				$action .= '<a href="' . base_url() . 'sp2d' . '/print_sp2d/' . $row->id . '" target="_blank"><i class="fas fa-print"></i>SP2D</a>&nbsp';
+			}
+
+			$action .= '<a href="' . base_url() . $this->modul_name . '/print/' . $row->id . '" target="_blank"><i class="fas fa-print"></i>SPP</a>&nbsp;<a href="' . base_url() . $this->modul_name . '/print_spm/' . $row->id . '" target="_blank"><i class="fas fa-print"></i>SPM</a>&nbsp;&nbsp;';
+			$data[] = [
+				$action . $row->unit_kode,
+				$row->unit_nama,
+				$row->jenis,
+				$row->nomor_spp,
+				$row->tgl_spp,
+				$row->nomor_spm,
+				$row->tgl_spm,
+				$row->uraian,
+				number_format($row->nilai, 2, ',', '.')
+			];
+		}
+
+		$arr = array(
+			'draw' => $_POST['draw'],
+			'recordsTotal' => $totalRecords,
+			'recordsFiltered' => $totalRecordwithFilter,
+			'data' => $data
+		);
+		echo json_encode($arr);
+	}
